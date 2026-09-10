@@ -1,0 +1,10 @@
+# Ignorar bases de datos y documentos pesados
+documentos_unlar
+chromadb_unlar
+sqlite_unlar.db
+
+# Ignorar entornos virtuales y archivos temporales de Python
+venv/
+__pycache__/
+*.pyc
+.env
