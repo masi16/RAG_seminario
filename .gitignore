@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 .env
 .vscode
+sqlite_unlar.db
