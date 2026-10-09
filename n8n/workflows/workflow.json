@@ -1,0 +1,150 @@
+{
+  "name": "RAG_workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Consulta",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -352,
+        -160
+      ],
+      "id": "8c91ec8e-9c0b-4961-9a3d-22fee00811ed",
+      "name": "Webhook",
+      "webhookId": "5569579b-55cf-4b6a-b572-9373c1c0db89"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/buscar",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=  {{ { \"consulta\": $json.body.pregunta, \"k\": 4 } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -144,
+        -160
+      ],
+      "id": "59272faa-50f9-4a34-b2ad-dd415675f1cb",
+      "name": "Buscar en Chroma DB "
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst pregunta = $('Webhook').first().json.body.pregunta;\nconst fragmentos = $input.first().json.resultados || [];\n\nconst contexto = fragmentos.map((f, i) => {\n  const m = f.metadata || {};\n  return `[${i + 1}] (${m.documento || 'documento'}, ${m.articulo || ''} p. ${m.pagina || '?'})\\n${f.texto}`;\n}).join('\\n\\n');\n\nconst prompt = `Sos un asistente académico de la UNLaR. Respondé en español usando SOLO el contexto de abajo. Si la respuesta no está en el contexto, decí que no la encontraste en los documentos. Citá el documento y artículo.\n\nCONTEXTO:\n${contexto}\n\nPREGUNTA: ${pregunta}`;\n\nreturn [{ json: { pregunta, fragmentos, messages: [{ role: 'user', content: prompt }] } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -160
+      ],
+      "id": "c1efd546-38d5-47cf-992f-b82b3a42dfd2",
+      "name": "Armar Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:1234/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "=keypair   {{ { \"model\": \"phi-3-mini-4k-instruct\", \"messages\": $json.messages, \"temperature\": 0.2, \"max_tokens\": 500, \"stream\": false } }}",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        -160
+      ],
+      "id": "5b979b41-9d15-4a1c-9805-d43083795c1b",
+      "name": "Llamar LLM "
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "=  {{ { \"respuesta\": $json.choices[0].message.content, \"fuentes\": $('Armar prompt').first().json.fragmentos } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        368,
+        -160
+      ],
+      "id": "580dd174-b25c-4d17-b9d8-b3c771b09577",
+      "name": "Devolver respuesta "
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Buscar en Chroma DB ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar en Chroma DB ": {
+      "main": [
+        [
+          {
+            "node": "Armar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar Prompt": {
+      "main": [
+        [
+          {
+            "node": "Llamar LLM ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar LLM ": {
+      "main": [
+        [
+          {
+            "node": "Devolver respuesta ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "926bb7eb-17bf-446f-b3a6-aa64f690f1f7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6879c37f0cf5c4d572058380e9aa3f34d6d9db926baca4999d3a3c51dcff28df"
+  },
+  "nodeGroups": [],
+  "id": "J8qXanTyUomEVWuo",
+  "tags": []
+}

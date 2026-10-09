@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+
+:root { --acento: #3B9AE1; --tinta: #14171A; --borde: #E7E8EB; }
+
+.stApp { background: #F3F4F6; }
+.stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp li,
+.stApp input, .stApp textarea, .stApp button { font-family: 'DM Sans', system-ui, sans-serif; }
+header[data-testid="stHeader"] { background: transparent; }
+
+section[data-testid="stSidebar"] { background: #fff; border-right: 1px solid var(--borde); }
+[data-testid="stSidebarUserContent"] { padding-bottom: 5rem; }
+[data-testid="stMainBlockContainer"] {
+    background: #fff; border: 1px solid var(--borde); border-radius: 22px;
+    max-width: 980px; padding: 1rem 2rem 4.5rem; margin-top: 0;
+}
+
+.stApp [data-testid="stMarkdownContainer"] *, .stApp label * { color: var(--tinta) !important; }
+.stApp [data-testid="stCaptionContainer"] * { color: #6B7280 !important; }
+.stApp [data-testid="stBaseButton-primary"] * { color: #fff !important; }
+[data-testid="stBaseButton-primary"] { background: var(--tinta); border-radius: 11px; }
+[data-testid="stExpander"] { border-radius: 14px; border-color: var(--borde); background: #FCFCFD; }
+
+[data-testid="stChatInput"], [data-testid="stChatInput"] textarea { background: #fff !important; color: var(--tinta) !important; }
+[data-testid="stChatInput"] { border-radius: 18px; box-shadow: 0 6px 24px rgba(20, 23, 26, .08); }
+[data-testid="stBottom"], [data-testid="stBottom"] > div { background: transparent !important; }
+[data-testid="stChatMessage"] { background: transparent; }
+[data-testid="stChatMessageAvatarAssistant"] { background: var(--acento) !important; }
+[data-testid="stChatMessageAvatarUser"] { background: var(--tinta) !important; }
+
+[class*="st-key-sug_"] button { min-height: 3.2rem; border: 1px solid var(--borde); border-radius: 14px; background: #FCFCFD; }
+[class*="st-key-sug_"] button:hover { border-color: var(--acento); }
+[class*="st-key-sug_"] button * { justify-content: flex-start !important; text-align: left !important; }
+
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] {
+    display: flex !important; width: 100% !important; justify-content: flex-start !important;
+    border: 0; border-radius: 9px; min-height: 0; padding: .4rem .6rem;
+}
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] * { justify-content: flex-start !important; text-align: left !important; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"]:hover { background: #F1F2F4; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] [data-testid="stMarkdownContainer"] { flex: 1; min-width: 0; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] p {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem;
+}
+[data-testid="stSidebar"] [data-testid="stIconMaterial"] { color: var(--acento) !important; }
+.st-key-nueva { position: fixed; bottom: 1rem; left: 1rem; width: 19rem; z-index: 100; }
+
+.marca { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+.marca b {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px; background: var(--acento); color: #fff;
+}
+.rotulo { font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: #9AA0A6; margin: 1rem 0 .4rem; }
+.pie { text-align: center; color: #9AA0A6; font-size: .78rem; margin-top: 1rem; }

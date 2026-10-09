@@ -1,10 +1,53 @@
-# Ignorar bases de datos y documentos pesados
-documentos_unlar
-chromadb_unlar
-sqlite_unlar.db
-
-# Ignorar entornos virtuales y archivos temporales de Python
+# ==============================
+# Entornos virtuales de Python
+# ==============================
 venv/
+.venv/
+env/
+ENV/
+
+# ==============================
+# Cache de python y archivos temporales
+# ==============================
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# ==============================
+# Bases de Datos y Vectoriales (data/)
+# ==============================
+# Ignora todo dentro de data/ excepto la carpeta raw y sus PDFs
+data/*
+!data/raw/
+!data/raw/**
+
+# SQLite
+*.sqlite3
+*.db
+*.db-journal
+
+# ChromaDB
+data/chroma_db/
+
+# ==============================
+# ignorar la carpeta creada "n8n_data" por docker 
+# ==============================
+n8n_data/
+.n8n/
+
+# ==============================
+# Secretos y variables de entorno
+# ==============================
 .env
+.env.local
+*.env
+
+# ==============================
+# IDEs y SO
+# ==============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
