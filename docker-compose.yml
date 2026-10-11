@@ -17,7 +17,8 @@ services:
       - ./n8n_data:/home/node/.n8n
       - ./n8n/workflows:/workflows:ro   # Monta la carpeta de workflows en modo lectura
       - ./data:/data
+      - C:/Proyectos/RAG/documentos_unlar:/documentos_unlar:ro # Monta la carpeta de documentos en modo lectura
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Importa todos los JSON de la carpeta y después arranca n8n
-    command: /bin/sh -c "n8n import:workflow --separate --input=/workflows && n8n start"
+    # command: /bin/sh -c "n8n import:workflow --separate --input=/workflows && n8n start"
