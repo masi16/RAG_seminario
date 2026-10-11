@@ -1,53 +1,114 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
 
-:root { --acento: #3B9AE1; --tinta: #14171A; --borde: #E7E8EB; }
+/* Paleta escolar: tinta azul, resaltador amarillo, pizarrón verde, hoja de cuaderno */
+:root { --tinta: #1B2A4A; --azul: #1B4DB1; --verde: #1F7A5C; --resaltador: #FFE066; --carpeta: #F0F4F9; --borde: #E1E7F0; }
 
-.stApp { background: #F3F4F6; }
 .stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp li,
 .stApp input, .stApp textarea, .stApp button { font-family: 'DM Sans', system-ui, sans-serif; }
 header[data-testid="stHeader"] { background: transparent; }
 
-section[data-testid="stSidebar"] { background: #fff; border-right: 1px solid var(--borde); }
-[data-testid="stSidebarUserContent"] { padding-bottom: 5rem; }
-[data-testid="stMainBlockContainer"] {
-    background: #fff; border: 1px solid var(--borde); border-radius: 22px;
-    max-width: 980px; padding: 1rem 2rem 4.5rem; margin-top: 0;
-}
+/* Hoja de cuaderno: renglones muy suaves detrás de la conversación */
+.stApp { background: #fff; }
+[data-testid="stMain"] { background: repeating-linear-gradient(transparent 0, transparent 31px, #EDF1F9 31px, #EDF1F9 32px); }
+[data-testid="stMainBlockContainer"] { background: transparent; border: 0; max-width: 860px; padding: 1rem 1.5rem 6rem; }
 
+/* Colores de texto (evitan que el modo oscuro del sistema los pise) */
 .stApp [data-testid="stMarkdownContainer"] *, .stApp label * { color: var(--tinta) !important; }
-.stApp [data-testid="stCaptionContainer"] * { color: #6B7280 !important; }
+.stApp [data-testid="stCaptionContainer"] * { color: #5F6B85 !important; }
 .stApp [data-testid="stBaseButton-primary"] * { color: #fff !important; }
-[data-testid="stBaseButton-primary"] { background: var(--tinta); border-radius: 11px; }
-[data-testid="stExpander"] { border-radius: 14px; border-color: var(--borde); background: #FCFCFD; }
 
-[data-testid="stChatInput"], [data-testid="stChatInput"] textarea { background: #fff !important; color: var(--tinta) !important; }
-[data-testid="stChatInput"] { border-radius: 18px; box-shadow: 0 6px 24px rgba(20, 23, 26, .08); }
-[data-testid="stBottom"], [data-testid="stBottom"] > div { background: transparent !important; }
-[data-testid="stChatMessage"] { background: transparent; }
-[data-testid="stChatMessageAvatarAssistant"] { background: var(--acento) !important; }
-[data-testid="stChatMessageAvatarUser"] { background: var(--tinta) !important; }
+/* Barra lateral azul, estilo menú */
+section[data-testid="stSidebar"] { background: #113d60; border-right: 0; }
+[data-testid="stSidebarUserContent"] { padding-bottom: 11rem; }
+.marca { margin-bottom: 1rem; }
+.marca strong { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
+.marca span { font-size: .85rem; }
+.rotulo { font-size: .85rem; font-weight: 700; margin: 1.2rem 0 .4rem; }
 
-[class*="st-key-sug_"] button { min-height: 3.2rem; border: 1px solid var(--borde); border-radius: 14px; background: #FCFCFD; }
-[class*="st-key-sug_"] button:hover { border-color: var(--acento); }
-[class*="st-key-sug_"] button * { justify-content: flex-start !important; text-align: left !important; }
+/* Botones: píldoras */
+[data-testid="stBaseButton-primary"] { background: var(--azul); border: 0; border-radius: 999px; }
+[data-testid="stDownloadButton"] button { border-radius: 999px; border-color: var(--borde); background: #fff; }
 
 [data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] {
     display: flex !important; width: 100% !important; justify-content: flex-start !important;
-    border: 0; border-radius: 9px; min-height: 0; padding: .4rem .6rem;
+    border: 0; border-radius: 999px; min-height: 0; padding: .45rem .8rem;
 }
 [data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] * { justify-content: flex-start !important; text-align: left !important; }
-[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"]:hover { background: #F1F2F4; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"]:hover { background: rgba(255,255,255,.14); }
 [data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] [data-testid="stMarkdownContainer"] { flex: 1; min-width: 0; }
-[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] p {
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem;
-}
-[data-testid="stSidebar"] [data-testid="stIconMaterial"] { color: var(--acento) !important; }
-.st-key-nueva { position: fixed; bottom: 1rem; left: 1rem; width: 19rem; z-index: 100; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-tertiary"] p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+[data-testid="stSidebar"] [data-testid="stIconMaterial"] { color: #fff !important; }
 
-.marca { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
-.marca b {
-    display: flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px; border-radius: 9px; background: var(--acento); color: #fff;
+/* Saludo inicial */
+.saludo { margin: 2rem 0 1.5rem; background: rgba(255,255,255,.9); border-radius: 20px; padding: .6rem 1rem; display: inline-block; }
+.stApp [data-testid="stMarkdownContainer"] .saludo .grad {
+    font-size: 2.5rem; font-weight: 700; line-height: 1.2; display: inline-block;
+    background: linear-gradient(90deg, #113d60, #113d60 60%, #113d60); -webkit-background-clip: text; background-clip: text;
+    color: transparent !important; -webkit-text-fill-color: transparent;
 }
-.rotulo { font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: #9AA0A6; margin: 1rem 0 .4rem; }
-.pie { text-align: center; color: #9AA0A6; font-size: .78rem; margin-top: 1rem; }
+.stApp [data-testid="stMarkdownContainer"] .saludo .sub { display: block; font-size: 1.15rem; color: #5F6B85 !important; margin-top: .2rem; }
+
+/* Consultas frecuentes: tarjetas de colores de útiles escolares */
+[class*="st-key-sug_"] button {
+    min-height: 6.5rem; align-items: flex-start; border: 0; border-radius: 20px; padding: 1rem; background: var(--carpeta);
+}
+[class*="st-key-sug_"] button:hover { box-shadow: 0 0 0 2px var(--azul) inset; }
+[class*="st-key-sug_"] button * { justify-content: flex-start !important; text-align: left !important; }
+.st-key-sug_school button { background: #E3ECFD; }
+.st-key-sug_edit_note button { background: #FFF3C2; }
+.st-key-sug_savings button { background: #DDF3E8; }
+.st-key-sug_event button { background: #FCE4E0; }
+.st-key-sug_badge button { background: #EBE4FB; }
+.st-key-sug_receipt_long button { background: #FFE8D2; }
+
+/* Mensajes */
+[data-testid="stChatMessage"] { background: transparent; }
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) { background: var(--carpeta); border-radius: 20px; padding: .6rem 1rem; }
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) { background: rgba(255,255,255,.92); border-radius: 20px; padding: .6rem 1rem; }
+[data-testid="stChatMessageAvatarAssistant"] { background: linear-gradient(135deg, var(--azul), var(--verde)) !important; }
+[data-testid="stChatMessageAvatarUser"] { background: var(--tinta) !important; }
+
+/* Fuentes: citas subrayadas con resaltador */
+[data-testid="stExpander"] { border: 1px solid var(--borde); border-radius: 16px; background: #fff; }
+[data-testid="stExpander"] blockquote {
+    border-left: 4px solid var(--resaltador); background: #FFFBE0; border-radius: 0 12px 12px 0; padding: .6rem 1rem;
+}
+
+/* Caja de preguntas */
+[data-testid="stChatInput"], [data-testid="stChatInput"] textarea { background: var(--carpeta) !important; color: var(--tinta) !important; }
+[data-testid="stChatInput"] { border-radius: 28px; border: 1px solid transparent; box-shadow: 0 4px 18px rgba(27, 42, 74, .08); }
+[data-testid="stChatInput"]:focus-within { border-color: var(--azul); }
+[data-testid="stBottom"], [data-testid="stBottom"] > div { background: transparent !important; }
+
+.pie { text-align: center; color: #5F6B85 !important; font-size: .78rem; margin-top: 1rem; }
+
+/* Texto blanco dentro de la barra lateral (gana a la regla general de texto oscuro) */
+.stApp [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] *,
+.stApp [data-testid="stSidebar"] label *,
+.stApp [data-testid="stSidebar"] button * { color: #fff !important; }
+.stApp [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] .rotulo,
+.stApp [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] .marca span,
+.stApp [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] .promo span { color: rgba(255,255,255,.75) !important; }
+[data-testid="stSidebarHeader"] button, [data-testid="stSidebarHeader"] svg { color: #fff !important; }
+.st-key-nueva p { font-size: 1rem !important; font-weight: 500; }
+
+/* Bloque fijo al pie del menú */
+.st-key-pie_lateral { position: fixed; bottom: 1rem; left: 1rem; width: 19rem; z-index: 100; }
+.promo { margin-bottom: .6rem; }
+.promo b { display: block; font-size: 1rem; margin-bottom: .3rem; }
+.promo span { display: block; font-size: .9rem; line-height: 1.4; }
+.st-key-pie_lateral [data-testid="stDownloadButton"] button {
+    background: #0B2A44; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: .7rem 1rem; font-weight: 700;
+}
+.st-key-pie_lateral [data-testid="stDownloadButton"] button:disabled { opacity: .55; }
+
+/* Fragmentos con puntajes */
+[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 16px; }
+.frag { margin-bottom: .2rem; }
+.stApp [data-testid="stMarkdownContainer"] .rango { color: #fff !important; }
+.rango { display: inline-block; min-width: 1.9rem; text-align: center; border-radius: 999px; background: #113d60; padding: .1rem .55rem; font-weight: 700; margin-right: .3rem; }
+.chip { display: inline-block; border-radius: 999px; padding: .15rem .75rem; margin: 0 .35rem .4rem 0; font-size: .82rem; font-weight: 700; border: 1px solid; }
+.chip.emb { background: #E3ECFD; border-color: #9DB9F0; }
+.chip.bm25 { background: #DDF3E8; border-color: #8CCFB0; }
+.chip.rrf { background: #EBE4FB; border-color: #BBA7EE; }
+.chip.rerank { background: #FFE8D2; border-color: #F0B27A; }
