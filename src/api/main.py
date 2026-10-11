@@ -17,6 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import chromadb
 from chromadb.utils import embedding_functions
+import sqlite3
+from ..ingestion.pipeline import DB_SQLITE, procesar_un_documento
+
 
 # Rutas relativas a la estructura del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -105,5 +108,28 @@ def buscar_documentos(peticion: PeticionBusqueda):
         "total_resultados": len(fragmentos_encontrados),
         "resultados": fragmentos_encontrados,
     }
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documentos/hashes")
+def obtener_hashes():
+  if not DB_SQLITE.exists():
+    return{}
+  conexion = sqlite3.connect(DB_SQLITE)
+  cursor = conexion.execute("SELECT nombre, hash FROM documentos")
+  datos = dict(cursor.fetchall())
+  conexion.close()
+  return datos
+
+class PeticionReindexar(BaseModel):
+  nombre_documento: str
+
+@app.post("/reindexar")
+def reindexar(peticion: PeticionReindexar):
+  try: 
+    cantidad = procesar_un_documento(peticion.nombre_documento)
+    return{"estado": "exito", "documento": peticion.nombre_documento, "fragmentos_indexados": cantidad}
+  except FileNotFoundError as e:
+    raise HTTPException(status_code=404, detail=str(e))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
