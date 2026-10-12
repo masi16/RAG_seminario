@@ -1,9 +1,7 @@
 """
 api.py
 ======
-API REST para conectar ChromaDB con n8n.
-Levanta un servidor local que recibe consultas en JSON
-y devuelve los fragmentos más relevantes.
+API REST para conectar ChromaDB con n8n. Levanta un servidor local que recibe consultas en JSON y devuelve los fragmentos más relevantes
 
 Ejecutar con:
     uvicorn api:app --reload --port 8000
