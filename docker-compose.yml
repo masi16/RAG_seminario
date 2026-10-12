@@ -13,6 +13,8 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=America/Argentina/La_Rioja
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto # Permite que n8n use el módulo 'crypto' de Node.js
+      - N8N_RESTRICT_FILE_ACCESS_TO=/data # Permite que n8n acceda a la carpeta /data para leer los PDFs
     volumes:
       - ./n8n_data:/home/node/.n8n
       - ./n8n/workflows:/workflows:ro   # Monta la carpeta de workflows en modo lectura
@@ -20,4 +22,4 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Importa todos los JSON de la carpeta y después arranca n8n
-    command: /bin/sh -c "n8n import:workflow --separate --input=/workflows && n8n start"
+    # command: /bin/sh -c "n8n import:workflow --separate --input=/workflows && n8n start"
