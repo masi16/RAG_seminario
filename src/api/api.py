@@ -1,25 +1,23 @@
 """
 api.py
 ======
-API REST para conectar el pipeline de Búsqueda Híbrida (RRF + SQLite) con n8n y Streamlit.
-Levanta un servidor local que recibe consultas en JSON y devuelve los fragmentos más relevantes.
+API REST para conectar el motor de Búsqueda Híbrida (BM25 + ChromaDB + RRF
+sobre SQLite) con n8n y Streamlit.
 
-Ejecutar con:
-    uvicorn src.api.api:app --reload --port 8000
-    (o desde la carpeta api: uvicorn api:app --reload --port 8000)
+Ejecutar con (desde la raíz del proyecto):
+    uvicorn src.api.api:app --reload --host 0.0.0.0 --port 8000
 
 Probar en el navegador:
     http://localhost:8000/docs
 """
+import sqlite3
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-# Importamos la búsqueda híbrida que combina BM25, ChromaDB y CRUD de SQLite
-try:
-    from src.search.fusion_rrf import busqueda_hibrida
-except ImportError:
-    from fusion_rrf import busqueda_hibrida
+from src.ingestion.pipeline import DB_SQLITE, procesar_un_documento
+from src.search.fusion_rrf import busqueda_hibrida
 
 app = FastAPI(
     title="API RAG UNLaR - Búsqueda Híbrida",
@@ -44,12 +42,16 @@ class PeticionBusqueda(BaseModel):
         populate_by_name = True
 
 
+class PeticionReindexar(BaseModel):
+    nombre_documento: str
+
+
 @app.get("/")
 def estado():
     return {
         "estado": "activo",
         "servicio": "Motor RAG UNLaR (Búsqueda Híbrida)",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
 
@@ -59,35 +61,45 @@ def buscar_documentos(peticion: PeticionBusqueda):
         raise HTTPException(
             status_code=400, detail="La consulta no puede estar vacía."
         )
+    try:
+        resultados = busqueda_hibrida(
+            peticion.consulta, k=peticion.k, audiencia=peticion.audiencia
+        )
+        return {
+            "estado": "exito",
+            "total_resultados": len(resultados),
+            "resultados": resultados,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-  try:
-    filtros = None
-    if peticion.audiencia and peticion.audiencia != "todos":
-      filtros = {"audiencia": peticion.audiencia}
 
-    resultados = coleccion.query(
-        query_texts=[peticion.consulta],
-        n_results=peticion.k,
-        where=filtros if filtros else None,
-    )
+@app.get("/documentos/hashes")
+def obtener_hashes():
+    if not DB_SQLITE.exists():
+        return {}
+    conexion = sqlite3.connect(DB_SQLITE)
+    try:
+        cursor = conexion.execute("SELECT nombre, hash FROM documentos")
+        return dict(cursor.fetchall())
+    except sqlite3.OperationalError:
+        return {}  # la tabla documentos todavía no existe
+    finally:
+        conexion.close()
 
-    fragmentos_encontrados = []
-    if resultados["documents"] and resultados["documents"][0]:
-      for doc, meta in zip(
-          resultados["documents"][0], resultados["metadatas"][0]
-      ):
-        fragmentos_encontrados.append({
-            "texto": doc,
-            "documento": meta.get("documento", "desconocido"),
-            "pagina": meta.get("pagina", "N/A"),
-            "articulo": meta.get("articulo", ""),
-            "audiencia": meta.get("audiencia", "general"),
-        })
 
-    return {
-        "estado": "exito",
-        "total_resultados": len(fragmentos_encontrados),
-        "resultados": fragmentos_encontrados,
-    }
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+@app.post("/reindexar")
+def reindexar(peticion: PeticionReindexar):
+    try:
+        cantidad = procesar_un_documento(peticion.nombre_documento)
+        return {
+            "estado": "exito",
+            "documento": peticion.nombre_documento,
+            "fragmentos_indexados": cantidad,
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
