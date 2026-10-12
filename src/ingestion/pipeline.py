@@ -36,7 +36,6 @@ RecursiveCharacterTextSplitter = splitter_module.RecursiveCharacterTextSplitter
 # Rutas estándar del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CARPETA_DOCS = BASE_DIR / "data" / "raw"
-DB_SQLITE = BASE_DIR / "data" / "sqlite" / "corpus.db"
 CARPETA_CHROMA = BASE_DIR / "data" / "chroma_db"
 COLECCION = "normativas_unlar"
 
@@ -91,14 +90,17 @@ def guardar_en_sqlite(fragmentos):
     )
     hash_texto = hashlib.md5(texto.encode()).hexdigest()
 
-    try:
-      conexion.execute(
-          """
-                INSERT INTO fragmentos (hash, texto, documento, pagina, articulo, audiencia)
-                VALUES (?, ?, ?, ?, '', ?)
-            """,
-          (hash_texto, texto, fuente, pagina, audiencia),
-      )
+insertado_id = insertar_fragmento(
+        hash_id=hash_texto,
+        texto=texto,
+        documento=fuente,
+        pagina=pagina,
+        articulo="",
+        audiencia=audiencia
+    )
+
+    # Si devolvió un ID, lo agregamos para indexar en Chroma
+    if insertado_id is not None:
       fragmentos_nuevos.append({
           "hash": hash_texto,
           "texto": texto,
@@ -107,11 +109,9 @@ def guardar_en_sqlite(fragmentos):
           "articulo": "",
           "audiencia": audiencia,
       })
-    except sqlite3.IntegrityError:
-      pass
 
-  conexion.commit()
-  conexion.close()
+  print(f"Fragmentos guardados en SQLite: {len(fragmentos_nuevos)}")    
+      
   return fragmentos_nuevos
 
 

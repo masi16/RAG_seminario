@@ -169,3 +169,10 @@ def eliminar_por_documento(nombre_documento: str) -> int:
         cursor.execute("DELETE FROM fragmentos WHERE documento = ?", (nombre_documento,))
         conexion.commit()
         return cursor.rowcount
+
+
+
+#SOLO PARA PROBAR QUE FUNCIONA 
+#if __name__ == "__main__":
+#    inicializar_db()
+#    print("Base inicializada correctamente.")
