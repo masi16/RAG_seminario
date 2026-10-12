@@ -92,10 +92,13 @@ def buscar_documentos(peticion: PeticionBusqueda):
 
     fragmentos_encontrados = []
     if resultados["documents"] and resultados["documents"][0]:
-      for doc, meta in zip(
-          resultados["documents"][0], resultados["metadatas"][0]
+      for frag_id, doc, meta in zip(
+          resultados["ids"][0],
+          resultados["documents"][0], 
+          resultados["metadatas"][0],
       ):
         fragmentos_encontrados.append({
+            "id": frag_id,
             "texto": doc,
             "documento": meta.get("documento", "desconocido"),
             "pagina": meta.get("pagina", "N/A"),
