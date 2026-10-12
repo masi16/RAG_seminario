@@ -1,3 +1,4 @@
+import html
 import os
 import time
 from pathlib import Path
@@ -7,6 +8,7 @@ import streamlit as st
 
 WEBHOOK = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/consulta")
 API_URL = os.getenv("API_URL")
+TIMEOUT = int(os.getenv("TIMEOUT", "180"))  # segundos; el modelo local puede tardar
 AVATAR = {"user": ":material/person:", "assistant": ":material/school:"}
 AUDIENCIAS = {
     "todos": "Toda la normativa",
@@ -56,13 +58,17 @@ DEMO = (
         {
             "documento": "Reglamento de Alumnos",
             "articulo": "Art. 12",
-            "pagina": 4,
+            "pagina": 3,
+            "puntaje_embedding": 0.82,
+            "puntaje_rerank": 0.94,
             "texto": "Para mantener la condición de alumno regular se debe aprobar al menos dos materias por año académico.",
         },
         {
             "documento": "Reglamento de exámenes finales",
             "articulo": "Art. 8",
-            "pagina": 2,
+            "pagina": 1,
+            "puntaje_embedding": 0.74,
+            "puntaje_rerank": 0.61,
             "texto": "La regularidad se pierde si no se cumple este requisito durante dos años consecutivos.",
         },
     ],
@@ -71,10 +77,24 @@ DEMO = (
 
 def llamar(url, pregunta, audiencia, **extra):
     r = requests.post(
-        url, json={"consulta": pregunta, "audiencia": audiencia, **extra}, timeout=120
+        url,
+        json={
+            "consulta": pregunta,
+            "pregunta": pregunta,  # compatibilidad con el workflow original
+            "audiencia": audiencia,
+            **extra,
+        },
+        timeout=TIMEOUT,
     )
     r.raise_for_status()
     return r.json()
+
+
+def normalizar_fuente(f):
+    # acepta fuentes con los datos dentro de "metadata" (formato de Chroma)
+    if isinstance(f.get("metadata"), dict):
+        return {**f["metadata"], **f}
+    return f
 
 
 def consultar(pregunta, audiencia):
@@ -82,39 +102,149 @@ def consultar(pregunta, audiencia):
         time.sleep(1)
         return DEMO
     if API_URL:
-        datos = llamar(f"{API_URL}/buscar_hibrido", pregunta, audiencia, top_k=3)
+        datos = llamar(f"{API_URL}/buscar", pregunta, audiencia, k=3)
         return (
             "**Modo prueba (sin LLM):** fragmentos más relevantes.",
-            datos["resultados"],
+            datos.get("resultados", []),
         )
     datos = llamar(WEBHOOK, pregunta, audiencia)
-    return datos.get("respuesta", ""), datos.get("fuentes") or datos.get(
-        "resultados", []
+    if isinstance(datos, list):  # n8n a veces devuelve una lista con un elemento
+        datos = datos[0] if datos else {}
+    if not isinstance(datos, dict):
+        raise ValueError("formato inesperado")
+    respuesta = next(
+        (
+            datos[k]
+            for k in ("respuesta", "output", "text", "answer")
+            if isinstance(datos.get(k), str)
+        ),
+        "",
     )
+    if not respuesta and isinstance(datos.get("choices"), list) and datos["choices"]:
+        respuesta = datos["choices"][0].get("message", {}).get("content", "")
+    fuentes = next(
+        (
+            datos[k]
+            for k in ("fuentes", "resultados", "sources")
+            if isinstance(datos.get(k), list)
+        ),
+        [],
+    )
+    return respuesta, [normalizar_fuente(f) for f in fuentes if isinstance(f, dict)]
+
+
+def formatear_pagina(valor):
+    # PyPDFLoader numera las páginas desde 0
+    try:
+        return f"Página {int(valor) + 1}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def explicar_error(error):
+    if isinstance(error, requests.exceptions.ConnectionError):
+        return (
+            "No pude conectar con el servicio. Verificá que n8n (o la API) esté "
+            "en ejecución y que el workflow esté publicado."
+        )
+    if isinstance(error, requests.exceptions.Timeout):
+        return (
+            "El servicio tardó demasiado en responder. Puede ser que el modelo "
+            "de LM Studio no esté cargado o sea muy lento."
+        )
+    if isinstance(error, requests.exceptions.HTTPError):
+        codigo = error.response.status_code if error.response is not None else "?"
+        if codigo == 404:
+            return (
+                "n8n no encontró el webhook (404). Verificá que el workflow esté "
+                "publicado y que la URL sea correcta."
+            )
+        return f"El servicio devolvió un error (HTTP {codigo}). Revisá las ejecuciones en n8n."
+    return (
+        "La respuesta del servicio no tiene el formato esperado "
+        "(se esperaba un JSON con 'respuesta' y 'fuentes')."
+    )
+
+
+def exportar(historial):
+    lineas = []
+    for m in historial:
+        if m["rol"] == "user":
+            lineas.append(f"Consulta: {m['texto']}")
+        else:
+            lineas.append(f"Respuesta: {m['texto']}")
+            for f in m.get("fuentes", []):
+                nombre = f.get("documento") or f.get("documento_origen", "Documento")
+                if f.get("articulo"):
+                    nombre += f" - {f['articulo']}"
+                lineas.append(f"  Fuente: {nombre}")
+        lineas.append("")
+    return "\n".join(lineas)
+
+
+PUNTAJES = [
+    ("puntaje_embedding", "Embedding", "emb"),
+    ("puntaje_bm25", "BM25", "bm25"),
+    ("puntaje_rrf", "RRF", "rrf"),
+    ("puntaje_rerank", "Re-ranking", "rerank"),
+]
+
+
+def es_numero(valor):
+    return isinstance(valor, (int, float)) and not isinstance(valor, bool)
 
 
 def mostrar_fuentes(fuentes):
     if fuentes:
         st.markdown(f"**Fuentes consultadas ({len(fuentes)})**")
-    for f in fuentes:
+    for n, f in enumerate(fuentes, 1):
         nombre = f.get("documento") or f.get("documento_origen", "Documento")
         if f.get("articulo"):
             nombre += f" — {f['articulo']}"
-        with st.expander(nombre):
+        with st.container(border=True):
+            st.markdown(
+                f"<div class='frag'><span class='rango'>#{n}</span> <b>{html.escape(nombre)}</b></div>",
+                unsafe_allow_html=True,
+            )
             detalle = [
-                f"Página {f['pagina']}" if f.get("pagina") else "",
+                formatear_pagina(f.get("pagina")),
                 ORIGEN.get(f.get("encontrado_por"), ""),
             ]
             st.caption(" · ".join(d for d in detalle if d))
-            st.markdown("> " + f.get("texto", "").replace("\n", " "))
+            chips = "".join(
+                f"<span class='chip {clase}'>{etiqueta} {f[clave]:.3f}</span>"
+                for clave, etiqueta, clase in PUNTAJES
+                if es_numero(f.get(clave))
+            )
+            if chips:
+                st.markdown(chips, unsafe_allow_html=True)
+            # barra del puntaje principal: re-ranking si existe, si no embedding
+            clave = (
+                "puntaje_rerank"
+                if es_numero(f.get("puntaje_rerank"))
+                else "puntaje_embedding"
+            )
+            if es_numero(f.get(clave)):
+                st.progress(max(0.0, min(1.0, f[clave])))
+            with st.expander("Ver texto del fragmento"):
+                st.markdown("> " + f.get("texto", "").replace("\n", " "))
 
 
 def barra_lateral(historial):
     with st.sidebar:
         st.markdown(
-            "<div class='marca'><b>U</b><div><strong>UNLaR</strong><br><small>Asistente virtual</small></div></div>",
+            "<div class='marca'><strong>UNLaR</strong><span>Asistente virtual</span></div>",
             unsafe_allow_html=True,
         )
+        if st.button(
+            "Nueva consulta",
+            key="nueva",
+            type="tertiary",
+            icon=":material/edit_square:",
+            width="stretch",
+        ):
+            historial.clear()
+            st.rerun()
         audiencia = st.radio(
             "Consultar normativa", list(AUDIENCIAS), format_func=AUDIENCIAS.get
         )
@@ -135,20 +265,28 @@ def barra_lateral(historial):
             ):
                 st.session_state.pendiente = pregunta
                 st.rerun()
-        if st.button(
-            "＋  Nueva consulta", key="nueva", type="primary", width="stretch"
-        ):
-            historial.clear()
-            st.rerun()
+        with st.container(key="pie_lateral"):
+            st.markdown(
+                "<div class='promo'><b>Respuestas con fuente</b>"
+                "<span>Cada respuesta indica el documento y la página de origen.</span></div>",
+                unsafe_allow_html=True,
+            )
+            st.download_button(
+                "Exportar conversación",
+                data=exportar(historial),
+                file_name="consulta_unlar.txt",
+                disabled=not historial,
+                width="stretch",
+            )
     return audiencia
 
 
 def pantalla_inicio():
-    with st.chat_message("assistant", avatar=AVATAR["assistant"]):
-        st.markdown(
-            "**¡Hola! Soy el asistente virtual de la UNLaR.**  \n"
-            "Consultame sobre reglamentos, ordenanzas y normativas: siempre indico el documento y artículo de origen."
-        )
+    st.markdown(
+        "<div class='saludo'><span class='grad'>¡Hola, estudiante!</span>"
+        "<span class='sub'>¿Qué querés consultar hoy? Te respondo con el documento y el artículo de origen.</span></div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(
         "<div class='rotulo'>Consultas frecuentes</div>", unsafe_allow_html=True
     )
@@ -172,23 +310,10 @@ st.markdown(f"<style>{estilos}</style>", unsafe_allow_html=True)
 historial = st.session_state.setdefault("historial", [])
 audiencia = barra_lateral(historial)
 
-izquierda, derecha = st.columns([4, 1.6])
-izquierda.caption(
-    "Universidad Nacional de La Rioja · Ingeniería en Sistemas de Información"
-)
-derecha.download_button(
-    "Exportar conversación",
-    data="\n".join(
-        f"{'Consulta' if m['rol'] == 'user' else 'Respuesta'}: {m['texto']}"
-        for m in historial
-    ),
-    file_name="consulta_unlar.txt",
-    disabled=not historial,
-    width="stretch",
-)
+st.caption("Universidad Nacional de La Rioja · Ingeniería en Sistemas de Información")
 
 consulta = st.chat_input(
-    "Escribí tu consulta sobre reglamentos y ordenanzas"
+    "Preguntale al asistente sobre reglamentos y ordenanzas"
 ) or st.session_state.pop("pendiente", None)
 if consulta:
     historial.append({"rol": "user", "texto": consulta})
@@ -210,11 +335,8 @@ if consulta:
                     texto
                     or "No encontré información sobre eso en los documentos cargados."
                 )
-            except requests.RequestException as error:
-                texto, fuentes = (
-                    f"No pude obtener respuesta del servicio. ¿Están activos n8n o la API?\n\n`{type(error).__name__}`",
-                    [],
-                )
+            except (requests.RequestException, ValueError) as error:
+                texto, fuentes = explicar_error(error), []
         st.markdown(texto)
         mostrar_fuentes(fuentes)
     historial.append({"rol": "assistant", "texto": texto, "fuentes": fuentes})

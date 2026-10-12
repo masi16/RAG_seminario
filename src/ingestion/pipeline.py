@@ -24,6 +24,9 @@ from chromadb.utils import embedding_functions
 from langchain_community.document_loaders import PyPDFLoader
 from datetime import datetime, timezone 
 
+#Importado de funciones de CRUD de crud.py en src/database
+from src.database.crud import inicializar_db, insertar_fragmento
+
 try:
   splitter_module = importlib.import_module("langchain_text_splitters")
 except ModuleNotFoundError:
@@ -72,20 +75,7 @@ def cargar_y_fragmentar():
 
 
 def guardar_en_sqlite(fragmentos):
-  DB_SQLITE.parent.mkdir(parents=True, exist_ok=True)
-  conexion = sqlite3.connect(DB_SQLITE)
-  conexion.execute("""
-        CREATE TABLE IF NOT EXISTS fragmentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            hash TEXT UNIQUE,
-            texto TEXT NOT NULL,
-            documento TEXT NOT NULL,
-            pagina TEXT NOT NULL,
-            articulo TEXT DEFAULT '',
-            audiencia TEXT DEFAULT 'general'
-        )
-    """)
-  conexion.commit()
+  inicializar_db()
 
   fragmentos_nuevos = []
   for frag in fragmentos:
