@@ -60,17 +60,34 @@ def buscar_documentos(peticion: PeticionBusqueda):
             status_code=400, detail="La consulta no puede estar vacía."
         )
 
-    try:
-        # Ejecuta BM25 + ChromaDB + RRF y recupera los textos desde SQLite
-        fragmentos_encontrados = busqueda_hibrida(
-            consulta=peticion.consulta,
-            k=peticion.k
-        )
+  try:
+    filtros = None
+    if peticion.audiencia and peticion.audiencia != "todos":
+      filtros = {"audiencia": peticion.audiencia}
 
-        return {
-            "estado": "exito",
-            "total_resultados": len(fragmentos_encontrados),
-            "resultados": fragmentos_encontrados,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en la búsqueda híbrida: {str(e)}")
+    resultados = coleccion.query(
+        query_texts=[peticion.consulta],
+        n_results=peticion.k,
+        where=filtros if filtros else None,
+    )
+
+    fragmentos_encontrados = []
+    if resultados["documents"] and resultados["documents"][0]:
+      for doc, meta in zip(
+          resultados["documents"][0], resultados["metadatas"][0]
+      ):
+        fragmentos_encontrados.append({
+            "texto": doc,
+            "documento": meta.get("documento", "desconocido"),
+            "pagina": meta.get("pagina", "N/A"),
+            "articulo": meta.get("articulo", ""),
+            "audiencia": meta.get("audiencia", "general"),
+        })
+
+    return {
+        "estado": "exito",
+        "total_resultados": len(fragmentos_encontrados),
+        "resultados": fragmentos_encontrados,
+    }
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
