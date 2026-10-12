@@ -1,33 +1,29 @@
 """
 api.py
 ======
-API REST para conectar ChromaDB con n8n. Levanta un servidor local que recibe consultas en JSON y devuelve los fragmentos más relevantes
+API REST para conectar el pipeline de Búsqueda Híbrida (RRF + SQLite) con n8n y Streamlit.
+Levanta un servidor local que recibe consultas en JSON y devuelve los fragmentos más relevantes.
 
 Ejecutar con:
-    uvicorn api:app --reload --port 8000
+    uvicorn src.api.api:app --reload --port 8000
+    (o desde la carpeta api: uvicorn api:app --reload --port 8000)
 
 Probar en el navegador:
     http://localhost:8000/docs
 """
-from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-import chromadb
-from chromadb.utils import embedding_functions
-import sqlite3
-from ..ingestion.pipeline import DB_SQLITE, procesar_un_documento
 
-
-# Rutas relativas a la estructura del proyecto
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-CARPETA_CHROMA = str(BASE_DIR / "data" / "chroma_db")
-COLECCION = "normativas_unlar"
-MODELO_EMBEDDINGS = "paraphrase-multilingual-MiniLM-L12-v2"
+# Importamos la búsqueda híbrida que combina BM25, ChromaDB y CRUD de SQLite
+try:
+    from src.search.fusion_rrf import busqueda_hibrida
+except ImportError:
+    from fusion_rrf import busqueda_hibrida
 
 app = FastAPI(
-    title="API RAG UNLaR - Búsqueda Semántica",
-    description="Conecta ChromaDB con n8n",
+    title="API RAG UNLaR - Búsqueda Híbrida",
+    description="Conecta el motor de recuperación (BM25 + ChromaDB + SQLite) con n8n",
     version="1.0.0",
 )
 
@@ -38,44 +34,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-coleccion = None
-
-try:
-  cliente = chromadb.PersistentClient(path=CARPETA_CHROMA)
-  emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-      model_name=MODELO_EMBEDDINGS
-  )
-  coleccion = cliente.get_collection(name=COLECCION, embedding_function=emb_fn)
-  print(f"✅ ChromaDB conectada. Fragmentos indexados: {coleccion.count()}")
-except Exception as e:
-  print(f"⚠️ ChromaDB no inicializada: {e}")
-
 
 class PeticionBusqueda(BaseModel):
-  consulta: str
-  k: int = Field(default=4, alias="top_k")  # Compatible con k y top_k
-  audiencia: str = "todos"
+    consulta: str
+    k: int = Field(default=4, alias="top_k")  # Compatible con k y top_k
+    audiencia: str = "todos"
 
-  class Config:
-    populate_by_name = True
+    class Config:
+        populate_by_name = True
 
 
 @app.get("/")
 def estado():
-  if coleccion is None:
-    return {"estado": "error", "mensaje": "ChromaDB no conectada"}
-  return {"estado": "activo", "fragmentos_indexados": coleccion.count()}
+    return {
+        "estado": "activo",
+        "servicio": "Motor RAG UNLaR (Búsqueda Híbrida)",
+        "version": "1.0.0"
+    }
 
 
 @app.post("/buscar")
 def buscar_documentos(peticion: PeticionBusqueda):
-  if coleccion is None or coleccion.count() == 0:
-    raise HTTPException(status_code=503, detail="ChromaDB no disponible o vacía")
-
-  if not peticion.consulta.strip():
-    raise HTTPException(
-        status_code=400, detail="La consulta no puede estar vacía."
-    )
+    if not peticion.consulta.strip():
+        raise HTTPException(
+            status_code=400, detail="La consulta no puede estar vacía."
+        )
 
   try:
     filtros = None
@@ -90,13 +73,10 @@ def buscar_documentos(peticion: PeticionBusqueda):
 
     fragmentos_encontrados = []
     if resultados["documents"] and resultados["documents"][0]:
-      for frag_id, doc, meta in zip(
-          resultados["ids"][0],
-          resultados["documents"][0], 
-          resultados["metadatas"][0],
+      for doc, meta in zip(
+          resultados["documents"][0], resultados["metadatas"][0]
       ):
         fragmentos_encontrados.append({
-            "id": frag_id,
             "texto": doc,
             "documento": meta.get("documento", "desconocido"),
             "pagina": meta.get("pagina", "N/A"),
@@ -109,28 +89,5 @@ def buscar_documentos(peticion: PeticionBusqueda):
         "total_resultados": len(fragmentos_encontrados),
         "resultados": fragmentos_encontrados,
     }
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/documentos/hashes")
-def obtener_hashes():
-  if not DB_SQLITE.exists():
-    return{}
-  conexion = sqlite3.connect(DB_SQLITE)
-  cursor = conexion.execute("SELECT nombre, hash FROM documentos")
-  datos = dict(cursor.fetchall())
-  conexion.close()
-  return datos
-
-class PeticionReindexar(BaseModel):
-  nombre_documento: str
-
-@app.post("/reindexar")
-def reindexar(peticion: PeticionReindexar):
-  try: 
-    cantidad = procesar_un_documento(peticion.nombre_documento)
-    return{"estado": "exito", "documento": peticion.nombre_documento, "fragmentos_indexados": cantidad}
-  except FileNotFoundError as e:
-    raise HTTPException(status_code=404, detail=str(e))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))

@@ -37,7 +37,6 @@ RecursiveCharacterTextSplitter = splitter_module.RecursiveCharacterTextSplitter
 # Rutas estándar del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CARPETA_DOCS = BASE_DIR / "data" / "raw"
-DB_SQLITE = BASE_DIR / "data" / "sqlite" / "corpus.db"
 CARPETA_CHROMA = BASE_DIR / "data" / "chroma_db"
 COLECCION = "normativas_unlar"
 
@@ -92,14 +91,17 @@ def guardar_en_sqlite(fragmentos):
     )
     hash_texto = hashlib.md5(texto.encode()).hexdigest()
 
-    try:
-      conexion.execute(
-          """
-                INSERT INTO fragmentos (hash, texto, documento, pagina, articulo, audiencia)
-                VALUES (?, ?, ?, ?, '', ?)
-            """,
-          (hash_texto, texto, fuente, pagina, audiencia),
-      )
+insertado_id = insertar_fragmento(
+        hash_id=hash_texto,
+        texto=texto,
+        documento=fuente,
+        pagina=pagina,
+        articulo="",
+        audiencia=audiencia
+    )
+
+    # Si devolvió un ID, lo agregamos para indexar en Chroma
+    if insertado_id is not None:
       fragmentos_nuevos.append({
           "hash": hash_texto,
           "texto": texto,
@@ -108,12 +110,144 @@ def guardar_en_sqlite(fragmentos):
           "articulo": "",
           "audiencia": audiencia,
       })
+
+  print(f"Fragmentos guardados en SQLite: {len(fragmentos_nuevos)}")    
+      
+  return fragmentos_nuevos
+
+# Resto del código permanece igual, no se han realizado cambios en las funciones siguientes.
+# Re-ingesta por documentos y no por lotes, para que n8n pueda llamar a esta función y reindexar un único PDF.
+
+def crear_tabla_documentos(conexion):
+  conexion.execute("""
+        CREATE TABLE IF NOT EXISTS documentos (
+            nombre TEXT PRIMARY KEY,
+            hash TEXT NOT NULL,
+            fecha_actualizacion TEXT NOT NULL
+        )
+    """)
+  conexion.commit()
+
+
+def calcular_hash_archivo(ruta_pdf):
+  with open(ruta_pdf, "rb") as f:
+    return hashlib.sha256(f.read()).hexdigest()
+
+
+def guardar_hash_documento(conexion, ruta_pdf, nombre_archivo):
+  nuevo_hash = calcular_hash_archivo(ruta_pdf)
+  conexion.execute(
+      """INSERT INTO documentos (nombre, hash, fecha_actualizacion)
+             VALUES (?, ?, ?)
+             ON CONFLICT(nombre) DO UPDATE SET
+                 hash = excluded.hash,
+                 fecha_actualizacion = excluded.fecha_actualizacion""",
+      (nombre_archivo, nuevo_hash, datetime.now(timezone.utc).isoformat()),
+  )
+  conexion.commit()
+
+
+def fragmentar_un_archivo(ruta_pdf):
+  """Igual que cargar_y_fragmentar, pero para un solo PDF."""
+  splitter = RecursiveCharacterTextSplitter(
+      chunk_size=CHUNK_SIZE,
+      chunk_overlap=CHUNK_OVERLAP,
+      separators=["\n\n", "\n", ".", " "],
+  )
+  loader = PyPDFLoader(str(ruta_pdf))
+  paginas = loader.load()
+  return splitter.split_documents(paginas)
+
+
+def procesar_un_documento(nombre_archivo):
+  """
+  Reprocesa un único PDF: borra sus fragmentos viejos (SQLite + Chroma)
+  e inserta los nuevos. Pensado para que lo llame /reindexar desde n8n.
+  Devuelve la cantidad de fragmentos nuevos insertados.
+  """
+  ruta = CARPETA_DOCS / nombre_archivo
+  if not ruta.exists():
+    raise FileNotFoundError(f"No existe {ruta}")
+
+  DB_SQLITE.parent.mkdir(parents=True, exist_ok=True)
+  conexion = sqlite3.connect(DB_SQLITE)
+  conexion.execute("""
+        CREATE TABLE IF NOT EXISTS fragmentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hash TEXT UNIQUE,
+            texto TEXT NOT NULL,
+            documento TEXT NOT NULL,
+            pagina TEXT NOT NULL,
+            articulo TEXT DEFAULT '',
+            audiencia TEXT DEFAULT 'general'
+        )
+    """)
+  crear_tabla_documentos(conexion)
+
+  CARPETA_CHROMA.mkdir(parents=True, exist_ok=True)
+  emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+      model_name=MODELO_EMBEDDINGS
+  )
+  cliente = chromadb.PersistentClient(path=str(CARPETA_CHROMA))
+  coleccion = cliente.get_or_create_collection(
+      name=COLECCION,
+      embedding_function=emb_fn,
+      metadata={"hnsw:space": "cosine"},
+  )
+
+  # 1. Borrar lo viejo de este documento
+  conexion.execute("DELETE FROM fragmentos WHERE documento = ?", (nombre_archivo,))
+  conexion.commit()
+  coleccion.delete(where={"documento": nombre_archivo})
+
+  # 2. Fragmentar de nuevo
+  trozos = fragmentar_un_archivo(ruta)
+
+  # 3. Guardar en SQLite (misma lógica que guardar_en_sqlite, para 1 archivo)
+  audiencia = (
+      "administrativo"
+      if any(
+          p in nombre_archivo.lower()
+          for p in ["licencia", "compra", "contratacion", "ordenanza"]
+      )
+      else "academico"
+  )
+  fragmentos_nuevos = []
+  for frag in trozos:
+    texto = frag.page_content.strip()
+    pagina = str(frag.metadata.get("page", "N/A"))
+    hash_texto = hashlib.md5(texto.encode()).hexdigest()
+    try:
+      conexion.execute(
+          """INSERT INTO fragmentos (hash, texto, documento, pagina, articulo, audiencia)
+                     VALUES (?, ?, ?, ?, '', ?)""",
+          (hash_texto, texto, nombre_archivo, pagina, audiencia),
+      )
+      fragmentos_nuevos.append({
+          "hash": hash_texto, "texto": texto, "documento": nombre_archivo,
+          "pagina": pagina, "articulo": "", "audiencia": audiencia,
+      })
     except sqlite3.IntegrityError:
       pass
-
   conexion.commit()
+
+  # 4. Cargar en Chroma
+  if fragmentos_nuevos:
+    textos = [f["texto"] for f in fragmentos_nuevos]
+    ids = [f["hash"] for f in fragmentos_nuevos]
+    metadatos = [{
+        "documento": f["documento"], "pagina": f["pagina"],
+        "articulo": f["articulo"], "audiencia": f["audiencia"],
+    } for f in fragmentos_nuevos]
+    LOTE = 50
+    for i in range(0, len(textos), LOTE):
+      fin = min(i + LOTE, len(textos))
+      coleccion.add(documents=textos[i:fin], ids=ids[i:fin], metadatas=metadatos[i:fin])
+
+  # 5. Actualizar el hash del documento
+  guardar_hash_documento(conexion, ruta, nombre_archivo)
   conexion.close()
-  return fragmentos_nuevos
+  return len(fragmentos_nuevos)
 
 # Resto del código permanece igual, no se han realizado cambios en las funciones siguientes.
 # Re-ingesta por documentos y no por lotes, para que n8n pueda llamar a esta función y reindexar un único PDF.
