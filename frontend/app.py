@@ -91,23 +91,23 @@ def llamar(url, pregunta, audiencia, **extra):
 
 
 def normalizar_fuente(f):
-    if isinstance(f.get("metadata"), dict):
-        f = {**f["metadata"], **f}
-    else:
-        f = dict(f)
-    origen = f.get("encontrado_por")
-    if isinstance(origen, list):
-        if "bm25" in origen and "semantico" in origen:
-            f["encontrado_por"] = "ambos"
-        elif "bm25" in origen:
-            f["encontrado_por"] = "lexico"
-        elif "semantico" in origen:
-            f["encontrado_por"] = "semantico"
-        else:
-            f["encontrado_por"] = ""
-    if "puntaje_rrf" not in f and es_numero(f.get("score_rrf")):
-        f["puntaje_rrf"] = f["score_rrf"]
-    return f
+       if isinstance(f.get("metadata"), dict):
+           f = {**f["metadata"], **f}
+       else:
+           f = dict(f)
+       origen = f.get("encontrado_por")
+       if isinstance(origen, list):
+           if "bm25" in origen and "semantico" in origen:
+               f["encontrado_por"] = "ambos"
+           elif "bm25" in origen:
+               f["encontrado_por"] = "lexico"
+           elif "semantico" in origen:
+               f["encontrado_por"] = "semantico"
+           else:
+               f["encontrado_por"] = ""
+       if "puntaje_rrf" not in f and es_numero(f.get("score_rrf")):
+           f["puntaje_rrf"] = f["score_rrf"]
+       return f
 
 
 def consultar(pregunta, audiencia):
@@ -206,6 +206,17 @@ PUNTAJES = [
 def es_numero(valor):
     return isinstance(valor, (int, float)) and not isinstance(valor, bool)
 
+def texto_origen(valor):
+    if isinstance(valor, list):
+        if "bm25" in valor and "semantico" in valor:
+            return "ambos"
+        if "bm25" in valor:
+            return "lexico"
+        if "semantico" in valor:
+            return "semantico"
+        return ""
+    return valor
+
 
 def mostrar_fuentes(fuentes):
     if fuentes:
@@ -221,7 +232,7 @@ def mostrar_fuentes(fuentes):
             )
             detalle = [
                 formatear_pagina(f.get("pagina")),
-                ORIGEN.get(f.get("encontrado_por"), ""),
+                ORIGEN.get(texto_origen(f.get("encontrado_por")), ""),
             ]
             st.caption(" · ".join(d for d in detalle if d))
             chips = "".join(
