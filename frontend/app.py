@@ -91,9 +91,22 @@ def llamar(url, pregunta, audiencia, **extra):
 
 
 def normalizar_fuente(f):
-    # acepta fuentes con los datos dentro de "metadata" (formato de Chroma)
     if isinstance(f.get("metadata"), dict):
-        return {**f["metadata"], **f}
+        f = {**f["metadata"], **f}
+    else:
+        f = dict(f)
+    origen = f.get("encontrado_por")
+    if isinstance(origen, list):
+        if "bm25" in origen and "semantico" in origen:
+            f["encontrado_por"] = "ambos"
+        elif "bm25" in origen:
+            f["encontrado_por"] = "lexico"
+        elif "semantico" in origen:
+            f["encontrado_por"] = "semantico"
+        else:
+            f["encontrado_por"] = ""
+    if "puntaje_rrf" not in f and es_numero(f.get("score_rrf")):
+        f["puntaje_rrf"] = f["score_rrf"]
     return f
 
 
