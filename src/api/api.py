@@ -1,3 +1,12 @@
+#API REST para conectar el motor de Búsqueda Híbrida (BM25 + ChromaDB + RRF
+#sobre SQLite) con n8n y Streamlit.
+
+#Ejecutar con (desde la raíz del proyecto):
+#    uvicorn src.api.api:app --reload --host 0.0.0.0 --port 8000
+
+#Probar en el navegador:
+#    http://localhost:8000/docs
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field

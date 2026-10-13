@@ -1,3 +1,21 @@
+#ROL 3 — Datos y Búsqueda Semántica
+#Responsable: Maximiliano Orellana
+
+#Este script hace tres cosas en orden:
+#  1. Lee los PDFs y .txt de data/raw/ y los fragmenta
+#     (avisa de los documentos sin texto, que necesitan OCR)
+#  2. Guarda cada fragmento en SQLite vía crud.py (fuente de verdad)
+#  3. Genera embeddings y los carga en ChromaDB
+
+#También expone procesar_un_documento() para reindexar un solo archivo;
+#lo llama el endpoint /reindexar desde n8n.
+
+#Ejecutar con (desde la raíz del proyecto):
+#    python -m src.ingestion.pipeline
+
+#Dependencias:
+#    pip install chromadb langchain langchain-community sentence-transformers pypdf
+
 import hashlib
 import importlib
 from contextlib import closing
