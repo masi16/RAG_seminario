@@ -1,0 +1,167 @@
+{
+  "name": "Consulta",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "consulta",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "14a4ead5-5d74-4d5f-b0ad-3613ce32bea2",
+      "name": "Webhook",
+      "webhookId": "5569579b-55cf-4b6a-b572-9373c1c0db89"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst pregunta = $('Webhook').first().json.body.pregunta;\nconst fragmentos = $input.first().json.resultados || [];\n\nconst contexto = fragmentos.map((f, i) => {\n  const pag = Number(f.pagina);\n  const pagTxt = Number.isNaN(pag) ? f.pagina : pag + 1;\n  const art = f.articulo ? `, art. ${f.articulo}` : '';\n  return `[${i + 1}] (${f.documento}, p. ${pagTxt}${art})\\n${f.texto}`;\n}).join('\\n\\n');\n\nconst prompt = `Sos un asistente académico de la UNLaR. Respondé en español, en un lenguaje claro y natural, usando SOLO el contexto de abajo. Si la respuesta no está en el contexto, decí que no la encontraste en los documentos. Al final indicá en qué documento y página se basa tu respuesta.\n\nCONTEXTO:\n${contexto}\n\nPREGUNTA: ${pregunta}`;\n\nconst messages = [{ role: 'user', content: prompt }];\nconst body = JSON.stringify({\n  model: 'phi-3-mini-4k-instruct',\n  messages,\n  temperature: 0.2,\n  max_tokens: 500,\n  stream: false,\n});\n\nreturn [{ json: { pregunta, fragmentos, body } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        0
+      ],
+      "id": "5430ff27-e56c-47c6-8e49-8564b26a63e4",
+      "name": "Armar Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/buscar",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "consulta",
+              "value": "={{ $json.body.pregunta }}"
+            },
+            {
+              "name": "k",
+              "value": "4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        0
+      ],
+      "id": "b88cd618-f970-41f7-a8fc-e6e6bc677f7c",
+      "name": "Buscar en Chroma DB"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:1234/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Armar Prompt').first().json.body }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        0
+      ],
+      "id": "1708b2e9-2035-4611-9061-f6b7aa1cac85",
+      "name": "Llamar LLM"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ respuesta: $json.choices[0].message.content, fuentes: $('Armar Prompt').first().json.fragmentos }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        0
+      ],
+      "id": "7da7a399-6081-4729-aff0-6e57ea703991",
+      "name": "Devolver respuesta"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Buscar en Chroma DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar Prompt": {
+      "main": [
+        [
+          {
+            "node": "Llamar LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar en Chroma DB": {
+      "main": [
+        [
+          {
+            "node": "Armar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar LLM": {
+      "main": [
+        [
+          {
+            "node": "Devolver respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "68d7ff60-a14f-4d4b-a959-58a2fdf24974",
+  "meta": {
+    "instanceId": "e22821552a7aa125bffd52ea9c82f17358ede237b88dac141e63c12c8650107c"
+  },
+  "nodeGroups": [],
+  "id": "gNgI40vLQ8h0kSGg",
+  "tags": []
+}
