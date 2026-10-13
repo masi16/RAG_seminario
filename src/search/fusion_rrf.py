@@ -45,7 +45,9 @@ def _obtener_coleccion():
 
 
 def buscar_semantico(consulta, k=10, audiencia="todos"):
-    filtros = {"audiencia": audiencia} if audiencia != "todos" else None
+    filtros = (
+        {"audiencia": {"$in": [audiencia, "general"]}} if audiencia != "todos" else None
+    )
     resultado = _obtener_coleccion().query(
         query_texts=[consulta], n_results=k, where=filtros
     )
