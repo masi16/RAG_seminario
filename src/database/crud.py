@@ -172,7 +172,7 @@ def eliminar_por_documento(nombre_documento: str) -> int:
 
 
 
-#SOLO PARA PROBAR QUE FUNCIONA 
-#if __name__ == "__main__":
-#    inicializar_db()
-#    print("Base inicializada correctamente.")
+#INICIALIZAR BASE DE DATOS
+if __name__ == "__main__":
+    inicializar_db()
+    print("Base inicializada correctamente.")
