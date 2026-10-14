@@ -1,63 +1,51 @@
 {
-  "name": "RAG_workflow",
+  "name": "Consulta",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "Consulta",
+        "path": "consulta",
         "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -352,
-        -160
+        0,
+        0
       ],
-      "id": "8c91ec8e-9c0b-4961-9a3d-22fee00811ed",
+      "id": "c2280ed6-5728-466d-b06e-159808acb9dd",
       "name": "Webhook",
       "webhookId": "5569579b-55cf-4b6a-b572-9373c1c0db89"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:8000/buscar",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "=  {{ { \"consulta\": $json.body.pregunta, \"k\": 4 } }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.5,
-      "position": [
-        -144,
-        -160
-      ],
-      "id": "59272faa-50f9-4a34-b2ad-dd415675f1cb",
-      "name": "Buscar en Chroma DB "
-    },
-    {
-      "parameters": {
-        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst pregunta = $('Webhook').first().json.body.pregunta;\nconst fragmentos = $input.first().json.resultados || [];\n\nconst contexto = fragmentos.map((f, i) => {\n  const m = f.metadata || {};\n  return `[${i + 1}] (${m.documento || 'documento'}, ${m.articulo || ''} p. ${m.pagina || '?'})\\n${f.texto}`;\n}).join('\\n\\n');\n\nconst prompt = `Sos un asistente académico de la UNLaR. Respondé en español usando SOLO el contexto de abajo. Si la respuesta no está en el contexto, decí que no la encontraste en los documentos. Citá el documento y artículo.\n\nCONTEXTO:\n${contexto}\n\nPREGUNTA: ${pregunta}`;\n\nreturn [{ json: { pregunta, fragmentos, messages: [{ role: 'user', content: prompt }] } }];"
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst pregunta = $('Webhook').first().json.body.pregunta;\nconst fragmentos = $input.first().json.resultados || [];\n\nconst contexto = fragmentos.map((f, i) => {\n  const pag = Number(f.pagina);\n  const pagTxt = Number.isNaN(pag) ? f.pagina : pag + 1;\n  const art = f.articulo ? `, art. ${f.articulo}` : '';\n  return `[${i + 1}] (${f.documento}, p. ${pagTxt}${art})\\n${f.texto}`;\n}).join('\\n\\n');\n\nconst prompt = `Sos un asistente académico de la UNLaR. Respondé en español, en un lenguaje claro y natural, usando SOLO el contexto de abajo. Si la respuesta no está en el contexto, decí que no la encontraste en los documentos. Al final indicá en qué documento y página se basa tu respuesta.\n\nCONTEXTO:\n${contexto}\n\nPREGUNTA: ${pregunta}`;\n\nconst messages = [{ role: 'user', content: prompt }];\nconst body = JSON.stringify({\n  model: 'phi3:mini',\n  messages,\n  temperature: 0.2,\n  max_tokens: 500,\n  stream: false,\n});\n\nreturn [{ json: { pregunta, fragmentos, body } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        32,
-        -160
+        384,
+        0
       ],
-      "id": "c1efd546-38d5-47cf-992f-b82b3a42dfd2",
+      "id": "ee4ea039-30bc-4740-9f8a-09ad231883f3",
       "name": "Armar Prompt"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:1234/v1/chat/completions",
+        "url": "http://rag-api:8000/buscar",
         "sendBody": true,
-        "specifyBody": "=keypair   {{ { \"model\": \"phi-3-mini-4k-instruct\", \"messages\": $json.messages, \"temperature\": 0.2, \"max_tokens\": 500, \"stream\": false } }}",
         "bodyParameters": {
           "parameters": [
-            {}
+            {
+              "name": "consulta",
+              "value": "={{ $json.body.pregunta }}"
+            },
+            {
+              "name": "k",
+              "value": "4"
+            }
           ]
         },
         "options": {}
@@ -66,25 +54,55 @@
       "typeVersion": 4.5,
       "position": [
         208,
-        -160
+        0
       ],
-      "id": "5b979b41-9d15-4a1c-9805-d43083795c1b",
-      "name": "Llamar LLM "
+      "id": "aaa9e90c-f348-45b9-b881-048f2d9aa6d9",
+      "name": "Buscar en Chroma DB"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Armar Prompt').first().json.body }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        0
+      ],
+      "id": "77c594ac-dca9-452a-a937-5db7d0c5ddf2",
+      "name": "Llamar LLM"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "=  {{ { \"respuesta\": $json.choices[0].message.content, \"fuentes\": $('Armar prompt').first().json.fragmentos } }}",
+        "responseBody": "={{ JSON.stringify({ respuesta: $json.choices[0].message.content, fuentes: $('Armar Prompt').first().json.fragmentos }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        368,
-        -160
+        720,
+        0
       ],
-      "id": "580dd174-b25c-4d17-b9d8-b3c771b09577",
-      "name": "Devolver respuesta "
+      "id": "bbbc869d-8f60-4b16-86cf-201ecb8a459d",
+      "name": "Devolver respuesta"
     }
   ],
   "pinData": {},
@@ -93,18 +111,7 @@
       "main": [
         [
           {
-            "node": "Buscar en Chroma DB ",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar en Chroma DB ": {
-      "main": [
-        [
-          {
-            "node": "Armar Prompt",
+            "node": "Buscar en Chroma DB",
             "type": "main",
             "index": 0
           }
@@ -115,18 +122,29 @@
       "main": [
         [
           {
-            "node": "Llamar LLM ",
+            "node": "Llamar LLM",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar LLM ": {
+    "Buscar en Chroma DB": {
       "main": [
         [
           {
-            "node": "Devolver respuesta ",
+            "node": "Armar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar LLM": {
+      "main": [
+        [
+          {
+            "node": "Devolver respuesta",
             "type": "main",
             "index": 0
           }
@@ -139,12 +157,11 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "926bb7eb-17bf-446f-b3a6-aa64f690f1f7",
+  "versionId": "9ba7f15f-019d-4f51-a406-49dcba9d8639",
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "6879c37f0cf5c4d572058380e9aa3f34d6d9db926baca4999d3a3c51dcff28df"
+    "instanceId": "a24b093d744c7282f51db0a6bc04021b9007313ddc6c64efa7c3e162fb82ec21"
   },
   "nodeGroups": [],
-  "id": "J8qXanTyUomEVWuo",
+  "id": "C8nvvpMn0awiO0M5",
   "tags": []
 }

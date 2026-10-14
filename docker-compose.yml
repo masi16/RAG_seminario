@@ -1,25 +1,55 @@
-version: '3.8'
-
 services:
+  # FastAPI (Búsqueda Híbrida: BM25 + ChromaDB + SQLite)
+  rag-api:
+    build: .
+    container_name: rag_unlar_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Sincroniza el código local con el contenedor
+      - .:/app
+      # Asegura que SQLite y ChromaDB se guarden en el disco físico
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # 2. Workflow n8n
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
-    container_name: n8n_rag_unlar
+    container_name: n8n_unlar
     restart: unless-stopped
     ports:
       - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
     environment:
       - N8N_HOST=localhost
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=America/Argentina/La_Rioja
-      - NODE_FUNCTION_ALLOW_BUILTIN=crypto # Permite que n8n use el módulo 'crypto' de Node.js
-      - N8N_RESTRICT_FILE_ACCESS_TO=/data # Permite que n8n acceda a la carpeta /data para leer los PDFs
+    depends_on:
+      - rag-api
+      - ollama
+
+  # 3. Servidor de LLM local (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_llm
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
     volumes:
-      - ./n8n_data:/home/node/.n8n
-      - ./n8n/workflows:/workflows:ro   # Monta la carpeta de workflows en modo lectura
-      - ./data:/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # Importa todos los JSON de la carpeta y después arranca n8n
-    # command: /bin/sh -c "n8n import:workflow --separate --input=/workflows && n8n start"
+      - ollama_models:/root/.ollama
+    # aceleración por GPU NVIDIA en WSL/Linux:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  n8n_data:
+  ollama_models:
