@@ -1,4 +1,4 @@
-# RAG Seminario — Asistente Normativo UNLaR
+# Asistente Normativo UNLaR - RAG
 
 Sistema de recuperación aumentada por generación (RAG) para consultar normativas y ordenanzas de la Universidad Nacional de La Rioja (UNLaR). El sistema ingesta documentos en formato PDF y TXT, fragmenta su contenido, persiste el corpus estructurado en SQLite y genera representaciones vectoriales en ChromaDB. 
 
@@ -65,7 +65,7 @@ RAG_seminario/
 │   └── estilos.css          # Estilos visuales de la interfaz
 ├── n8n/
 │   └── workflows/           # Definiciones de workflows exportados (.json)
-│       └── Consulta_corregido.json
+│       └── workflow.json
 ├── src/
 │   ├── api/
 │   │   └── api.py           # API REST con FastAPI (controlador de búsqueda)
